@@ -9,13 +9,16 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/jessevdk/go-flags"
+	"github.com/mattn/go-isatty"
+	"gopkg.in/yaml.v2"
 )
 
 type options struct {
-	// Command string `short:"c" long:"command" description:"The name of the input Markdown file" value-name:"INPUT"`
 	Input  string `short:"i" long:"input" description:"The name of the input file" value-name:"INPUT"`
 	Output string `short:"o" long:"output" description:"The name of the output file" value-name:"OUTPUT"`
 }
+
+type print func(format string, a ...interface{})
 
 func main() {
 	opts := &options{}
@@ -33,14 +36,24 @@ func main() {
 	}
 	defer output.Close()
 
-	E := color.New(color.FgHiRed).PrintfFunc()
-	W := color.New(color.FgHiYellow).PrintfFunc()
-	I := color.New(color.FgHiGreen).PrintfFunc()
-	D := color.New(color.FgHiWhite).PrintfFunc()
+	var E, W, I, D print
+	if isatty.IsTerminal(output.Fd()) {
+		E = color.New(color.FgHiRed).PrintfFunc()
+		W = color.New(color.FgHiYellow).PrintfFunc()
+		I = color.New(color.FgHiGreen).PrintfFunc()
+		D = color.New(color.FgWhite).PrintfFunc()
+	} else {
+		write := func(format string, a ...interface{}) {
+			fmt.Fprintf(output, format, a...)
+		}
+		E = write
+		W = write
+		I = write
+		D = write
+	}
+
 	scanner := bufio.NewScanner(input)
 	for scanner.Scan() {
-
-		// fmt.Fprintf(output, "%s\n", scanner.Text())
 		m := map[string]interface{}{}
 		err := json.Unmarshal(scanner.Bytes(), &m)
 		if err != nil {
@@ -48,15 +61,56 @@ func main() {
 		}
 		switch m["level"] {
 		case "error", "fatal":
-			dumpMap(E, "", m)
+			// dumpMap(E, "", m)
+			write(E, m)
 		case "warn", "warning":
-			dumpMap(W, "", m)
+			// dumpMap(W, "", m)
+			write(W, m)
 		case "info":
-			dumpMap(I, "", m)
+			// dumpMap(I, "", m)
+			write(I, m)
 		case "debug":
-			dumpMap(D, "", m)
+			// dumpMap(D, "", m)
+			write(D, m)
 		}
 
+	}
+}
+
+// Message is a structured log message.
+type Message struct {
+	Application string                 `yaml:"application,omitempty"`
+	Level       string                 `yaml:"level,omitempty"`
+	Message     string                 `yaml:"message,omitempty"`
+	Data        map[string]interface{} `yaml:"data,omitempty"`
+}
+
+func write(print func(format string, a ...interface{}), m map[string]interface{}) {
+	msg := Message{
+		Data: map[string]interface{}{},
+	}
+	for k, v := range m {
+		switch k {
+		case "application":
+			if v, ok := v.(string); ok {
+				msg.Application = v
+			}
+		case "level":
+			if v, ok := v.(string); ok {
+				msg.Level = v
+			}
+		case "message":
+			if v, ok := v.(string); ok {
+				msg.Message = v
+			}
+		default:
+			msg.Data[k] = v
+		}
+	}
+	data, err := yaml.Marshal(msg)
+	if err == nil {
+		print(string(data))
+		print("\n")
 	}
 }
 
