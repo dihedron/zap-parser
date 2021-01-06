@@ -1,3 +1,0 @@
-{"level":"debug","ts":1609282306.6018353,"caller":"dox/main.go:32","msg":"application started","input":"test5.md","output":"test.pdf","theme":"pdf/test.yaml"}
-{"level":"info","ts":1609282306.602844,"caller":"dox/main.go:65","msg":"theme file opened"}
-{"level":"warn","ts":1609282306.6038413,"caller":"dox/main.go:74","msg":"theme loaded"}
